@@ -1,0 +1,6 @@
+#whiteboard {
+  width: 100vw;
+  height: 80vh;
+  display: block;
+  border: 1px solid #000;
+}
