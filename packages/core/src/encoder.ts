@@ -19,13 +19,8 @@ export function encodeEvent(e: WbEvent, baseTime: number): Uint8Array {
       return encodeStroke(e, baseTime);
   }
 }
-const PREFIX = 1 + 4; // opcode + delta
-const ID = 4;
-const POINT = 4 + 4; // x, y,
 function encodeStroke(e: StrokeEvent, baseTime: number): Uint8Array {
-  const payload = e.action === 'start' ? POINT + 4 + 1 : e.action === 'move' ? POINT : 0;
-
-  const buf = new BinaryWriter(PREFIX + ID + payload);
+  const buf = new BinaryWriter();
 
   buf.writeUInt8(pack(Type.stroke, Action.stroke[e.action]));
   buf.writeUInt32LE(Math.max(0, Math.round(e.t - baseTime)));
@@ -33,6 +28,7 @@ function encodeStroke(e: StrokeEvent, baseTime: number): Uint8Array {
   switch (e.action) {
     case 'start':
       buf.writeUInt8(e.color);
+      buf.writeUInt8(e.width);
       buf.writeFloat32LE(e.point.x);
       buf.writeFloat32LE(e.point.y);
       break;

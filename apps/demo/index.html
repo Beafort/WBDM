@@ -8,11 +8,13 @@
   </head>
   <body>
     <div id="app">
-        <button id="record">Start recording</button>
-       <button id="stop">Stop recording</button>
-       <button id="download">Download</button>
+      <button id="record">Start recording</button>
+      <button id="stop">Stop recording</button>
+      <input type="file" accept=".wbdm" id="recording" />
     </div>
     <canvas id="whiteboard"></canvas>
+    <span id="timestamp">00:00/00:00</span>
+    <progress id="progress" value="0" max="100"></progress>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

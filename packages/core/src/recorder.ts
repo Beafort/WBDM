@@ -11,7 +11,6 @@ export class Recorder {
   private baseTime: number = 0;
   private sink: Sink;
   private state: RecorderState = RecorderState.Idle;
-  private strokeCount: number = 0;
   constructor(sink: Sink) {
     this.sink = sink;
   }
@@ -41,9 +40,5 @@ export class Recorder {
   async writeEvent(e: WbEvent) {
     if (this.state != RecorderState.Recording) throw Error('Not Recording!');
     await this.sink.write(encodeEvent(e, this.baseTime));
-  }
-
-  getNextStrokeId() {
-    return this.strokeCount++;
   }
 }

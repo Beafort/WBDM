@@ -1,6 +1,7 @@
 type Point = { x: number; y: number };
 export type Stroke = {
   id: number;
+  type: 'stroke';
   color: number;
   width: number;
   points: Point[];

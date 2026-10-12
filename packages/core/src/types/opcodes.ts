@@ -6,9 +6,11 @@ export const Action = {
   shape: { add: 0x0, update: 0x1, delete: 0x2 },
 } as const;
 
-export const pack = (category: number, action: number) => {
-  if (category > 0xf || action > 0xf) throw new RangeError('type/action out of range');
-  return (category << 4) | action;
+export const pack = (type: number, action: number) => {
+  if (type > 0xf || action > 0xf) throw new RangeError('type/action out of range');
+  return (type << 4) | action;
 };
-export const categoryOf = (op: number) => op >> 4;
+
+export const unpack = (value: number) => {};
+export const typeOf = (op: number) => op >> 4;
 export const actionOf = (op: number) => op & 0x0f;
