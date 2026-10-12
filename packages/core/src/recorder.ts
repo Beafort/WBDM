@@ -1,14 +1,19 @@
-import { BinaryWriter } from './binary-writer.js';
+import { encodeEvent, encodeHeader } from './encoder.js';
 import type { Sink } from './sink.js';
-import type { StrokeEvent } from './types/events/stroke.js';
-import type { WbEvent } from './types/index.js';
+import type { WbEvent } from './types/events/base.js';
 
+enum RecorderState {
+  Idle,
+  Recording,
+  Stopped,
+}
 export class Recorder {
-  private baseTime: number;
+  private baseTime: number = 0;
   private sink: Sink;
+  private state: RecorderState = RecorderState.Idle;
+  private strokeCount: number = 0;
   constructor(sink: Sink) {
     this.sink = sink;
-    this.baseTime = Math.floor(Date.now() / 1000);
   }
 
   /**
@@ -23,31 +28,22 @@ export class Recorder {
    *   5       8     timestamp  Recording start, ms since Unix epoch, uint64
    */
   async start() {
-    const header = new BinaryWriter(13);
-
-    header.writeString('WBDM');
-    header.writeUInt8(1);
-    header.writeUInt64LE(this.baseTime);
-    console.log(header);
-    await this.sink.write(header.getBytes());
+    this.baseTime = Date.now();
+    await this.sink.write(encodeHeader(this.baseTime));
+    this.state = RecorderState.Recording;
   }
 
   async stop() {
     await this.sink.close();
+    this.state = RecorderState.Stopped;
   }
 
   async writeEvent(e: WbEvent) {
-    switch (e.type) {
-      case 'stroke':
-        this.writeStrokeEvent(e);
-        break;
-    }
+    if (this.state != RecorderState.Recording) throw Error('Not Recording!');
+    await this.sink.write(encodeEvent(e, this.baseTime));
   }
 
-  //
-  private writeStrokeEvent(e: StrokeEvent) {
-    const buffer = new BinaryWriter(8);
-
-    buffer.writeUInt8(0);
+  getNextStrokeId() {
+    return this.strokeCount++;
   }
 }

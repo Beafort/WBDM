@@ -30,6 +30,10 @@ export class BinaryWriter {
     this.offset += 8;
   }
 
+  writeFloat32LE(value: number) {
+    this.view.setFloat32(this.offset, value, true);
+    this.offset += 4;
+  }
   writeString(value: string) {
     const bytes = new TextEncoder().encode(value);
     this.bytes.set(bytes, this.offset);

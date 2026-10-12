@@ -1,4 +1,4 @@
-import type { StrokeEvent } from './events/stroke.js';
+import type { StrokeEvent } from './stroke.js';
 
 export interface BaseEvent {
   t: number;

@@ -1,5 +1,7 @@
 import { Recorder, type Sink } from 'wbdm';
 import './style.css';
+
+const strokes = new Map<number, Stroke>();
 const recordButton = document.querySelector<HTMLButtonElement>('#record')!;
 const stopButton = document.querySelector<HTMLButtonElement>('#stop')!;
 const downloadButton = document.querySelector<HTMLButtonElement>('#download')!;
@@ -64,11 +66,33 @@ downloadButton.addEventListener('click', async () => {
 });
 
 whiteboard.addEventListener('pointerdown', (e: PointerEvent) => {
-  console.log(e.x, e.y);
+  if (!recorder) return;
+  recorder.writeEvent({
+    t: Date.now(),
+    type: 'stroke',
+    action: 'start',
+    strokeId: recorder.getNextStrokeId(),
+    color: 1,
+    width: 10,
+    point: { x: e.x, y: e.y },
+  });
 });
 whiteboard.addEventListener('pointermove', (e: PointerEvent) => {
-  console.log(e.x, e.y);
+  if (!recorder) return;
+  recorder.writeEvent({
+    t: Date.now(),
+    type: 'stroke',
+    action: 'move',
+    strokeId: recorder.getNextStrokeId(),
+    point: { x: e.x, y: e.y },
+  });
 });
 whiteboard.addEventListener('pointerup', (e: PointerEvent) => {
-  console.log(e.x, e.y);
+  if (!recorder) return;
+  recorder.writeEvent({
+    t: Date.now(),
+    type: 'stroke',
+    action: 'end',
+    strokeId: recorder.getNextStrokeId(),
+  });
 });
