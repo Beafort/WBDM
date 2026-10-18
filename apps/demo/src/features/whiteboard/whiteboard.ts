@@ -1,6 +1,6 @@
+import type { StrokeEvent, WbEvent } from 'wbdm';
 import { renderStroke } from '../renderer';
 import type { Stroke } from './types';
-import type { StrokeEvent, WbEvent } from 'wbdm';
 export class Whiteboard {
   private strokes = new Map<number, Stroke>();
   private nextId = 1;
@@ -17,6 +17,7 @@ export class Whiteboard {
       this.applyStrokeEvent(event);
     }
   }
+
   resize() {
     const dpr = window.devicePixelRatio || 1;
     const rect = this.canvas.getBoundingClientRect();
@@ -32,9 +33,14 @@ export class Whiteboard {
     return this.nextId++;
   }
   draw() {
+    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
     for (const stroke of this.strokes.values()) {
       renderStroke(stroke, this.ctx);
     }
+  }
+  clear() {
+    this.strokes.clear();
+    this.draw();
   }
   private applyStrokeEvent(event: StrokeEvent) {
     switch (event.action) {

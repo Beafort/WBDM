@@ -19,6 +19,7 @@ export class Player {
   private rafId = 0;
   private listeners = new Set<Listener>();
   private tickListeners = new Set<TickListener>();
+  private resetListeners = new Set<() => void>();
   speed = 1;
 
   constructor(bytes: Uint8Array) {
@@ -43,6 +44,11 @@ export class Player {
     return () => this.tickListeners.delete(fn);
   }
 
+  onReset(fn: () => void) {
+    this.resetListeners.add(fn);
+    return () => this.resetListeners.delete(fn);
+  }
+
   start() {
     if (this.state === PlayerState.Playing) return;
     this.state = PlayerState.Playing;
@@ -53,6 +59,27 @@ export class Player {
   pause() {
     this.state = PlayerState.Stopped;
     cancelAnimationFrame(this.rafId);
+  }
+
+  seek(ms: number) {
+    const target = Math.max(0, Math.min(ms, this.duration));
+    const newIndex = this.indexAt(target);
+
+    if (newIndex < this.index) {
+      //  wipe the board and replay from the start if the new index is in the past
+      this.resetListeners.forEach((fn) => fn());
+      this.index = 0;
+    }
+
+    // emit everything between the current index and the target, with no delay
+    while (this.index < newIndex) {
+      const e = this.events[this.index++];
+      this.listeners.forEach((fn) => fn(e));
+    }
+
+    this.position = target;
+    this.lastFrame = performance.now();
+    this.tickListeners.forEach((fn) => fn(this.position));
   }
 
   private tick = (now: number) => {
@@ -77,4 +104,15 @@ export class Player {
     }
     this.rafId = requestAnimationFrame(this.tick);
   };
+  private indexAt(ms: number): number {
+    //Binary search
+    let lo = 0,
+      hi = this.events.length;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (this.events[mid].t - this.baseTime <= ms) lo = mid + 1;
+      else hi = mid;
+    }
+    return lo;
+  }
 }

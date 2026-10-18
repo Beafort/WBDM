@@ -1,17 +1,42 @@
 import { Player, Recorder, type Sink, type StrokeEvent } from 'wbdm';
-import './style.css';
 import { Whiteboard } from './features/whiteboard/whiteboard';
+import './style.css';
+function emitMove(strokeId: number, point: { x: number; y: number }) {
+  const event: StrokeEvent = { t: Date.now(), type: 'stroke', action: 'move', strokeId, point };
+  whiteboard.apply(event);
+  whiteboard.draw();
+  recorder?.writeEvent(event).catch(console.error);
+  lastPoint = point;
+  pendingPoint = undefined;
+}
+
+function endStroke() {
+  if (currentStroke === undefined) return;
+  if (pendingPoint) emitMove(currentStroke, pendingPoint);
+  const event: StrokeEvent = {
+    t: Date.now(),
+    type: 'stroke',
+    action: 'end',
+    strokeId: currentStroke,
+  };
+  whiteboard.apply(event);
+  whiteboard.draw();
+  recorder?.writeEvent(event).catch(console.error);
+  currentStroke = lastPoint = pendingPoint = undefined;
+}
 
 let currentStroke: number | undefined = undefined;
 let lastPoint: { x: number; y: number } | undefined;
 let pendingPoint: { x: number; y: number } | undefined;
+let player: Player | undefined;
 const MIN_DIST = 0.5;
 const recordButton = document.querySelector<HTMLButtonElement>('#record')!;
 const stopButton = document.querySelector<HTMLButtonElement>('#stop')!;
 const input = document.querySelector<HTMLInputElement>('#recording')!;
+const clearButton = document.querySelector<HTMLButtonElement>('#clear')!;
 const canvas = document.querySelector<HTMLCanvasElement>('#whiteboard')!;
-const progress = document.querySelector<HTMLProgressElement>('#progress')!;
 const timeDisplay = document.querySelector<HTMLSpanElement>('#timestamp')!;
+const scrubber = document.querySelector<HTMLInputElement>('#scrubber')!;
 const whiteboard = new Whiteboard(canvas);
 let recorder: Recorder | undefined;
 let file: FileSystemFileHandle | undefined;
@@ -33,9 +58,9 @@ recordButton.addEventListener('click', async () => {
     },
   };
 
-  recorder = new Recorder(sink);
-
-  await recorder.start();
+  const r = new Recorder(sink);
+  await r.start();
+  recorder = r;
 
   console.log('Recording started');
 });
@@ -52,36 +77,47 @@ stopButton.addEventListener('click', async () => {
   link.download = 'recording.wbdm';
   link.click();
 
-  URL.revokeObjectURL(url);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 
+  const r = recorder;
   recorder = undefined;
+  await r.stop();
 });
-
+scrubber.addEventListener('input', () => player?.seek(Number(scrubber.value)));
 input.addEventListener('change', async () => {
   const file = input.files?.[0];
   if (!file) return;
+  player?.pause();
+  whiteboard.clear();
   const bytes = new Uint8Array(await file.arrayBuffer());
-  const player = new Player(bytes);
-  player.onEvent((e) => {
-    whiteboard.apply(e);
+  let next: Player;
+  try {
+    next = new Player(bytes);
+  } catch (err) {
+    alert('Not a valid .wbdm file');
+    return;
+  }
+  player?.pause();
+  whiteboard.clear();
+  player = next;
+  scrubber.max = String(player.duration);
+  scrubber.value = '0';
+  player.onReset(() => whiteboard.clear());
+  player.onEvent((e) => whiteboard.apply(e));
+  player.onTick((pos) => {
     whiteboard.draw();
+    scrubber.value = pos.toString();
+    timeDisplay.textContent = formatTime(pos);
   });
 
   player.start();
-  progress.max = player.duration;
-  progress.value = 0;
-  player.onTick((pos) => {
-    progress.value = pos;
-
-    const seconds = Math.floor(pos / 1000);
-    const minutes = Math.floor(seconds / 60);
-    const remainingSeconds = seconds % 60;
-
-    timeDisplay.innerText = `${minutes}:${String(remainingSeconds).padStart(2, '0')}`;
-  });
 });
-
+function formatTime(ms: number) {
+  const s = Math.floor(ms / 1000);
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+}
 canvas.addEventListener('pointerdown', (e: PointerEvent) => {
+  canvas.setPointerCapture(e.pointerId);
   const event: StrokeEvent = {
     t: Date.now(),
     type: 'stroke',
@@ -108,34 +144,8 @@ canvas.addEventListener('pointermove', (e) => {
     pendingPoint = point;
     return;
   }
-  const event: StrokeEvent = {
-    t: Date.now(),
-    type: 'stroke',
-    action: 'move',
-    strokeId: currentStroke,
-    point: { x: e.offsetX, y: e.offsetY },
-  };
-  whiteboard.apply(event);
-  whiteboard.draw();
-  recorder?.writeEvent(event).catch(console.error);
-  lastPoint = point;
-  pendingPoint = undefined;
+  emitMove(currentStroke, point);
 });
-canvas.addEventListener('pointerup', (e: PointerEvent) => {
-  if (!currentStroke) return;
-  const event: StrokeEvent = {
-    t: Date.now(),
-    type: 'stroke',
-    action: 'end',
-    strokeId: currentStroke,
-  };
-  whiteboard.apply(event);
-
-  whiteboard.draw();
-  currentStroke = 0;
-  recorder?.writeEvent(event).catch(console.error);
-
-  currentStroke = undefined;
-  lastPoint = undefined;
-  pendingPoint = undefined;
-});
+canvas.addEventListener('pointerup', endStroke);
+canvas.addEventListener('pointercancel', endStroke);
+clearButton.addEventListener('click', () => whiteboard.clear());

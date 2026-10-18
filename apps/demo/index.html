@@ -11,10 +11,13 @@
       <button id="record">Start recording</button>
       <button id="stop">Stop recording</button>
       <input type="file" accept=".wbdm" id="recording" />
+      <button id="clear">Clear</button>
+
+      <button id="resume">Resume</button>
     </div>
     <canvas id="whiteboard"></canvas>
     <span id="timestamp">00:00/00:00</span>
-    <progress id="progress" value="0" max="100"></progress>
+    <input type="range" id="scrubber" min="0" max="0" value="0" />
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>
