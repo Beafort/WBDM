@@ -1,12 +1,22 @@
-import { Player, Recorder, type Sink, type StrokeEvent } from 'wbdm';
-import { Whiteboard } from './features/whiteboard/whiteboard';
+import {
+  COLORS,
+  Player,
+  Recorder,
+  WbCanvas,
+  type Sink,
+  type StrokeEvent,
+  type TextEvent,
+} from 'wbdm';
 import './style.css';
-function emitMove(strokeId: number, point: { x: number; y: number }) {
-  const event: StrokeEvent = { t: Date.now(), type: 'stroke', action: 'move', strokeId, point };
+let strokeOrigin: { x: number; y: number } | undefined;
+function emitMove(eId: number, abs: { x: number; y: number }) {
+  if (!strokeOrigin) return;
+  const point = { x: abs.x - strokeOrigin.x, y: abs.y - strokeOrigin.y };
+  const event: StrokeEvent = { t: Date.now(), type: 'stroke', action: 'move', eId, point };
   whiteboard.apply(event);
   whiteboard.draw();
   recorder?.writeEvent(event).catch(console.error);
-  lastPoint = point;
+  lastPoint = abs;
   pendingPoint = undefined;
 }
 
@@ -17,14 +27,44 @@ function endStroke() {
     t: Date.now(),
     type: 'stroke',
     action: 'end',
-    strokeId: currentStroke,
+    eId: currentStroke,
   };
   whiteboard.apply(event);
   whiteboard.draw();
   recorder?.writeEvent(event).catch(console.error);
-  currentStroke = lastPoint = pendingPoint = undefined;
+  currentStroke = lastPoint = pendingPoint = strokeOrigin = undefined;
 }
+function insertText(x: number, y: number) {
+  const event: TextEvent = {
+    t: Date.now(),
+    type: 'text',
+    action: 'start',
+    content: '',
+    eId: whiteboard.newStrokeId(),
+    position: { x, y },
+    color: COLORS.black,
+    fontSize: 24,
+    width: 0,
+    height: 0,
+  };
 
+  whiteboard.apply(event);
+  const modifyEvent: TextEvent = {
+    t: Date.now(),
+    type: 'text',
+    action: 'modify',
+    content: 'Hello Worlds',
+    eId: event.eId,
+    position: { x, y },
+    color: COLORS.black,
+    fontSize: 24,
+    width: 100,
+    height: 100,
+  };
+  whiteboard.apply(modifyEvent);
+  whiteboard.draw();
+  console.log(whiteboard.elements);
+}
 let currentStroke: number | undefined = undefined;
 let lastPoint: { x: number; y: number } | undefined;
 let pendingPoint: { x: number; y: number } | undefined;
@@ -37,9 +77,10 @@ const clearButton = document.querySelector<HTMLButtonElement>('#clear')!;
 const canvas = document.querySelector<HTMLCanvasElement>('#whiteboard')!;
 const timeDisplay = document.querySelector<HTMLSpanElement>('#timestamp')!;
 const scrubber = document.querySelector<HTMLInputElement>('#scrubber')!;
-const whiteboard = new Whiteboard(canvas);
+const whiteboard = new WbCanvas(canvas);
 let recorder: Recorder | undefined;
 let file: FileSystemFileHandle | undefined;
+
 recordButton.addEventListener('click', async () => {
   const root = await navigator.storage.getDirectory();
   file = await root.getFileHandle('recording.wbdm', {
@@ -117,17 +158,22 @@ function formatTime(ms: number) {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 }
 canvas.addEventListener('pointerdown', (e: PointerEvent) => {
+  if (e.shiftKey) {
+    insertText(e.offsetX, e.offsetY);
+    return;
+  }
   canvas.setPointerCapture(e.pointerId);
   const event: StrokeEvent = {
     t: Date.now(),
     type: 'stroke',
     action: 'start',
-    strokeId: whiteboard.newStrokeId(),
-    color: 1,
+    eId: whiteboard.newStrokeId(),
+    color: COLORS.black,
     width: 10,
-    point: { x: e.offsetX, y: e.offsetY },
+    position: { x: e.offsetX, y: e.offsetY },
   };
-  currentStroke = event.strokeId;
+  currentStroke = event.eId;
+  strokeOrigin = { x: e.offsetX, y: e.offsetY };
   whiteboard.apply(event);
   whiteboard.draw();
   recorder?.writeEvent(event).catch(console.error);

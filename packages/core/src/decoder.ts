@@ -1,4 +1,5 @@
 import { BinaryReader } from './binary-reader.js';
+import { decodeColor } from './renderer/color.js';
 import type { WbEvent } from './types/events/base.js';
 import type { StrokeEvent } from './types/events/stroke.js';
 import { Action, actionOf, Type, typeOf } from './types/opcodes.js';
@@ -42,25 +43,21 @@ function decodeStroke(reader: BinaryReader, action: number, t: number): StrokeEv
         t,
         type: 'stroke',
         action: 'start',
-        color: reader.readUInt8(),
+        color: decodeColor(reader.readUInt8()),
         width: reader.readUInt8(),
-        strokeId,
-        point: { x: reader.readFloat32LE(), y: reader.readFloat32LE() },
+        eId: strokeId,
+        position: { x: reader.readFloat32LE(), y: reader.readFloat32LE() },
       };
     case Action.stroke.move:
       return {
         t,
-        strokeId,
+        eId: strokeId,
         type: 'stroke',
         action: 'move',
         point: { x: reader.readFloat32LE(), y: reader.readFloat32LE() },
       };
     case Action.stroke.end:
-      return { t, type: 'stroke', action: 'end', strokeId };
-    case Action.stroke.delete:
-      return { t, type: 'stroke', action: 'delete', strokeId };
-    case Action.stroke.insert:
-      return { t, type: 'stroke', action: 'insert', strokeId };
+      return { t, type: 'stroke', action: 'end', eId: strokeId };
     default:
       throw new Error('Unknown action for stroke event 0x' + action.toString(16));
   }
