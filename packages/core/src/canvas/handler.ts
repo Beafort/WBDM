@@ -43,7 +43,7 @@ export function applyStrokeEvent(canvas: WbCanvas, event: StrokeEvent) {
         color: event.color,
         width: event.width,
         position: event.position,
-        points: [event.position],
+        points: [{ x: 0, y: 0 }],
         visible: true,
       });
       return;

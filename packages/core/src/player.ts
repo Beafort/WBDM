@@ -1,4 +1,4 @@
-import { decodeWBDM } from './decoder.js';
+import { decodeWBDM } from './codec/decoder.js';
 import type { WbEvent } from './types/events/base.js';
 type Listener = (e: WbEvent) => void;
 type TickListener = (position: number) => void;

@@ -1,4 +1,4 @@
-import { encodeEvent, encodeHeader } from './encoder.js';
+import { encodeEvent, encodeHeader } from './codec/encoder.js';
 import type { Sink } from './sink.js';
 import type { WbEvent } from './types/events/base.js';
 

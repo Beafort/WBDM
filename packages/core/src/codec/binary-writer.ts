@@ -39,9 +39,20 @@ export class BinaryWriter {
     this.view.setFloat32(this.offset, value, true);
     this.offset += 4;
   }
+
   writeString(value: string) {
-    this.ensure(value.length);
     const bytes = new TextEncoder().encode(value);
+
+    if (bytes.length > 65535) {
+      throw new Error('String exceeds maximum length of 65535 bytes');
+    }
+
+    this.writeUInt16LE(bytes.length);
+    this.writeBytes(bytes);
+  }
+
+  writeBytes(bytes: Uint8Array) {
+    this.ensure(bytes.length);
     this.bytes.set(bytes, this.offset);
     this.offset += bytes.length;
   }

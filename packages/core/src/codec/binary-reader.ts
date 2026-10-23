@@ -5,15 +5,28 @@ export class BinaryReader {
   constructor(private bytes: Uint8Array) {
     this.view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   }
-
+  /**
+   * Gets the number of unread bytes remaining in the buffer.
+   */
   get remaining() {
     return this.bytes.length - this.offset;
   }
-  readString(length: number): string {
+
+  readBytes(length: number): Uint8Array {
     this.ensure(length);
-    const s = new TextDecoder().decode(this.bytes.subarray(this.offset, this.offset + length));
+    const start = this.offset;
     this.offset += length;
-    return s;
+    return this.bytes.subarray(start, this.offset);
+  }
+
+  readString(): string {
+    const length = this.readUInt16LE();
+    console.log('String length prefix:', length);
+
+    const bytes = this.readBytes(length);
+    console.log('Bytes read:', bytes.length);
+
+    return new TextDecoder().decode(bytes);
   }
 
   readUInt8() {

@@ -1,4 +1,4 @@
-import type { COLORS } from '../../renderer/color.js';
+import type { COLORS } from '../../canvas/color.js';
 import type { Point } from '../geometry.js';
 import type { ElementEvent } from './element.js';
 import type { StrokeEvent } from './stroke.js';
