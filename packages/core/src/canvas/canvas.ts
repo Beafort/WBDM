@@ -1,3 +1,4 @@
+import { getElementBounds } from '../geometry/bounds.js';
 import type { WbElement } from '../types/elements/base.js';
 import type { WbEvent } from '../types/events/base.js';
 import { applyElementEvent, applyStrokeEvent, applyTextEvent } from './handler.js';
@@ -42,7 +43,7 @@ export class WbCanvas {
 
     this.draw();
   }
-  newStrokeId() {
+  newElementId() {
     return this.nextId++;
   }
   draw() {
@@ -64,5 +65,14 @@ export class WbCanvas {
   clear() {
     this.elements.clear();
     this.draw();
+  }
+  hitTest(x: number, y: number): WbElement | undefined {
+    const elements = [...this.elements.values()].reverse();
+
+    return elements.find((element) => {
+      const { x: ex, y: ey, width, height } = getElementBounds(element);
+
+      return x >= ex && x <= ex + width && y >= ey && y <= ey + height;
+    });
   }
 }

@@ -1,75 +1,15 @@
 import {
-  COLORS,
   Player,
   Recorder,
   WbCanvas,
+  WbPenTool,
+  WbTextTool,
   type Sink,
-  type StrokeEvent,
-  type TextEvent,
+  type WbTextEditor,
+  type WbTool,
 } from 'wbdm';
 import './style.css';
-let strokeOrigin: { x: number; y: number } | undefined;
-function emitMove(eId: number, abs: { x: number; y: number }) {
-  if (!strokeOrigin) return;
-  const point = { x: abs.x - strokeOrigin.x, y: abs.y - strokeOrigin.y };
-  const event: StrokeEvent = { t: Date.now(), type: 'stroke', action: 'move', eId, point };
-  whiteboard.apply(event);
-  whiteboard.draw();
-  recorder?.writeEvent(event).catch(console.error);
-  lastPoint = abs;
-  pendingPoint = undefined;
-}
 
-function endStroke() {
-  if (currentStroke === undefined) return;
-  if (pendingPoint) emitMove(currentStroke, pendingPoint);
-  const event: StrokeEvent = {
-    t: Date.now(),
-    type: 'stroke',
-    action: 'end',
-    eId: currentStroke,
-  };
-  whiteboard.apply(event);
-  whiteboard.draw();
-  recorder?.writeEvent(event).catch(console.error);
-  currentStroke = lastPoint = pendingPoint = strokeOrigin = undefined;
-}
-function insertText(x: number, y: number) {
-  const event: TextEvent = {
-    t: Date.now(),
-    type: 'text',
-    action: 'start',
-    content: '',
-    eId: whiteboard.newStrokeId(),
-    position: { x, y },
-    color: COLORS.black,
-    fontSize: 24,
-    width: 0,
-    height: 0,
-  };
-
-  whiteboard.apply(event);
-  const modifyEvent: TextEvent = {
-    t: Date.now(),
-    type: 'text',
-    action: 'modify',
-    content: 'Hello Worlds',
-    eId: event.eId,
-    position: { x, y },
-    color: COLORS.black,
-    fontSize: 24,
-    width: 100,
-    height: 100,
-  };
-  whiteboard.apply(modifyEvent);
-  whiteboard.draw();
-  console.log(whiteboard.elements);
-}
-let currentStroke: number | undefined = undefined;
-let lastPoint: { x: number; y: number } | undefined;
-let pendingPoint: { x: number; y: number } | undefined;
-let player: Player | undefined;
-const MIN_DIST = 0.5;
 const recordButton = document.querySelector<HTMLButtonElement>('#record')!;
 const stopButton = document.querySelector<HTMLButtonElement>('#stop')!;
 const input = document.querySelector<HTMLInputElement>('#recording')!;
@@ -77,11 +17,59 @@ const clearButton = document.querySelector<HTMLButtonElement>('#clear')!;
 const canvas = document.querySelector<HTMLCanvasElement>('#whiteboard')!;
 const timeDisplay = document.querySelector<HTMLSpanElement>('#timestamp')!;
 const scrubber = document.querySelector<HTMLInputElement>('#scrubber')!;
+const toolSelector = document.querySelector<HTMLSelectElement>('#tool')!;
+const textEditor = document.querySelector<HTMLTextAreaElement>('#text-editor')!;
+const editor: WbTextEditor = {
+  open(position, content, style, onChange, onFinish) {
+    const rect = canvas.getBoundingClientRect();
+
+    textEditor.value = content;
+    textEditor.hidden = false;
+    textEditor.style.display = 'block';
+
+    textEditor.style.left = `${rect.left + window.scrollX + position.x}px`;
+    textEditor.style.top = `${rect.top + window.scrollY + position.y}px`;
+
+    textEditor.style.width = `${style.width}px`;
+    textEditor.style.height = `${style.height}px`;
+    textEditor.style.fontSize = `${style.fontSize}px`;
+    textEditor.style.lineHeight = `${style.fontSize * 1.2}px`;
+
+    textEditor.oninput = () => onChange(textEditor.value);
+    textEditor.onblur = () => onFinish();
+
+    requestAnimationFrame(() => textEditor.focus());
+  },
+
+  close() {
+    textEditor.oninput = null;
+    textEditor.onblur = null;
+    textEditor.hidden = true;
+    textEditor.style.display = 'none';
+  },
+};
+
 const whiteboard = new WbCanvas(canvas);
+let player: Player | undefined;
 let recorder: Recorder | undefined;
 let file: FileSystemFileHandle | undefined;
 
+const penTool = new WbPenTool(whiteboard, recorder);
+const textTool = new WbTextTool(whiteboard, recorder, editor);
+
+const tools = {
+  pen: penTool,
+  text: textTool,
+};
+let activeTool: WbTool = penTool;
+
+toolSelector.addEventListener('change', () => {
+  activeTool.cancel?.();
+
+  activeTool = tools[toolSelector.value as keyof typeof tools];
+});
 recordButton.addEventListener('click', async () => {
+  if (recorder) return;
   const root = await navigator.storage.getDirectory();
   file = await root.getFileHandle('recording.wbdm', {
     create: true,
@@ -102,13 +90,18 @@ recordButton.addEventListener('click', async () => {
   const r = new Recorder(sink);
   await r.start();
   recorder = r;
-
+  penTool.setRecorder(r);
+  textTool.setRecorder(r);
   console.log('Recording started');
 });
 stopButton.addEventListener('click', async () => {
   if (!recorder || !file) return;
-
-  await recorder.stop();
+  activeTool.cancel?.();
+  const r = recorder;
+  recorder = undefined;
+  penTool.setRecorder(undefined);
+  textTool.setRecorder(undefined);
+  await r.stop();
 
   const recordedFile = await file.getFile();
   const url = URL.createObjectURL(recordedFile);
@@ -119,10 +112,6 @@ stopButton.addEventListener('click', async () => {
   link.click();
 
   setTimeout(() => URL.revokeObjectURL(url), 1000);
-
-  const r = recorder;
-  recorder = undefined;
-  await r.stop();
 });
 scrubber.addEventListener('input', () => player?.seek(Number(scrubber.value)));
 input.addEventListener('change', async () => {
@@ -158,40 +147,20 @@ function formatTime(ms: number) {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 }
 canvas.addEventListener('pointerdown', (e: PointerEvent) => {
-  if (e.shiftKey) {
-    insertText(e.offsetX, e.offsetY);
-    return;
-  }
+  e.preventDefault();
   canvas.setPointerCapture(e.pointerId);
-  const event: StrokeEvent = {
-    t: Date.now(),
-    type: 'stroke',
-    action: 'start',
-    eId: whiteboard.newStrokeId(),
-    color: COLORS.black,
-    width: 10,
-    position: { x: e.offsetX, y: e.offsetY },
-  };
-  currentStroke = event.eId;
-  strokeOrigin = { x: e.offsetX, y: e.offsetY };
-  whiteboard.apply(event);
-  whiteboard.draw();
-  recorder?.writeEvent(event).catch(console.error);
-  lastPoint = { x: e.offsetX, y: e.offsetY };
-  pendingPoint = undefined;
+  activeTool?.pointerDown({ x: e.offsetX, y: e.offsetY });
 });
-canvas.addEventListener('pointermove', (e) => {
-  if (currentStroke === undefined || !lastPoint) return;
-  const point = { x: e.offsetX, y: e.offsetY };
-  const dx = point.x - lastPoint.x;
-  const dy = point.y - lastPoint.y;
 
-  if (dx * dx + dy * dy < MIN_DIST * MIN_DIST) {
-    pendingPoint = point;
-    return;
-  }
-  emitMove(currentStroke, point);
+canvas.addEventListener('pointermove', (e) => {
+  activeTool?.pointerMove({ x: e.offsetX, y: e.offsetY });
 });
-canvas.addEventListener('pointerup', endStroke);
-canvas.addEventListener('pointercancel', endStroke);
+
+canvas.addEventListener('pointerup', (e) => {
+  activeTool?.pointerUp({ x: e.offsetX, y: e.offsetY });
+});
+
+canvas.addEventListener('pointercancel', () => {
+  activeTool?.cancel();
+});
 clearButton.addEventListener('click', () => whiteboard.clear());
