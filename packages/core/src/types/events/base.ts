@@ -1,5 +1,6 @@
 import type { COLORS } from '../../canvas/color.js';
 import type { Point } from '../geometry.js';
+import type { AudioEvent } from './audio.js';
 import type { ElementEvent } from './element.js';
 import type { StrokeEvent } from './stroke.js';
 import type { TextEvent } from './text.js';
@@ -15,4 +16,4 @@ export interface Positioned {
 export interface Colored {
   color: COLORS;
 }
-export type WbEvent = StrokeEvent | ElementEvent | TextEvent;
+export type WbEvent = StrokeEvent | ElementEvent | TextEvent | AudioEvent;

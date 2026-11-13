@@ -1,4 +1,5 @@
 import type { WbElement } from '../types/elements/base.js';
+import type { AudioEvent } from '../types/events/audio.js';
 import type { ElementEvent } from '../types/events/element.js';
 import type { StrokeEvent } from '../types/events/stroke.js';
 import type { TextEvent } from '../types/events/text.js';
@@ -55,6 +56,7 @@ export function applyStrokeEvent(canvas: WbCanvas, event: StrokeEvent) {
     case 'end':
   }
 }
+export function applyAudioEvent(canvas: WbCanvas, event: AudioEvent) {}
 function getElement<T extends WbElement['type']>(
   elements: Map<number, WbElement>,
   id: number,

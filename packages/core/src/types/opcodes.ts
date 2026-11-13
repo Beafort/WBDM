@@ -1,8 +1,9 @@
-export const Type = { stroke: 0x1, text: 0x2, cursor: 0x3, shape: 0x4 } as const;
+export const Type = { stroke: 0x1, text: 0x2, cursor: 0x3, shape: 0x4, audio: 0x5 } as const;
 
 export const Action = {
   stroke: { start: 0x0, move: 0x1, end: 0x2 },
   text: { start: 0x0, modify: 0x1 },
+  audio: { start: 0x0, chunk: 0x1, end: 0x2 },
   cursor: { move: 0x0, hide: 0x1 },
   shape: { add: 0x0, update: 0x1, delete: 0x2 },
 } as const;

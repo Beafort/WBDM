@@ -19,6 +19,16 @@ const timeDisplay = document.querySelector<HTMLSpanElement>('#timestamp')!;
 const scrubber = document.querySelector<HTMLInputElement>('#scrubber')!;
 const toolSelector = document.querySelector<HTMLSelectElement>('#tool')!;
 const textEditor = document.querySelector<HTMLTextAreaElement>('#text-editor')!;
+const micButton = document.querySelector<HTMLButtonElement>('#mic')!;
+let talking = false;
+function setTalking(on: boolean) {
+  if (!recorder) return;
+  talking = on;
+  if (on) recorder.startTalking();
+  else void recorder.stopTalking();
+  micButton.textContent = on ? '🔴 Mic on' : '🎙 Mic off';
+}
+
 const editor: WbTextEditor = {
   open(position, content, style, onChange, onFinish) {
     const rect = canvas.getBoundingClientRect();
@@ -53,6 +63,7 @@ const whiteboard = new WbCanvas(canvas);
 let player: Player | undefined;
 let recorder: Recorder | undefined;
 let file: FileSystemFileHandle | undefined;
+let micStream: MediaStream | undefined;
 
 const penTool = new WbPenTool(whiteboard, recorder);
 const textTool = new WbTextTool(whiteboard, recorder, editor);
@@ -70,6 +81,14 @@ toolSelector.addEventListener('change', () => {
 });
 recordButton.addEventListener('click', async () => {
   if (recorder) return;
+  try {
+    micStream = await navigator.mediaDevices.getUserMedia({
+      audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true },
+    });
+  } catch (err) {
+    alert('Microphone access is required to record.');
+    return;
+  }
   const root = await navigator.storage.getDirectory();
   file = await root.getFileHandle('recording.wbdm', {
     create: true,
@@ -87,7 +106,7 @@ recordButton.addEventListener('click', async () => {
     },
   };
 
-  const r = new Recorder(sink);
+  const r = new Recorder(sink, micStream);
   await r.start();
   recorder = r;
   penTool.setRecorder(r);
@@ -161,6 +180,7 @@ canvas.addEventListener('pointerup', (e) => {
 });
 
 canvas.addEventListener('pointercancel', () => {
-  activeTool?.cancel();
+  activeTool?.cancel?.();
 });
 clearButton.addEventListener('click', () => whiteboard.clear());
+micButton.addEventListener('click', () => setTalking(!talking));

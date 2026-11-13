@@ -1,11 +1,16 @@
 import { decodeColor } from '../canvas/color.js';
+import type { AudioEvent } from '../types/events/audio.js';
 import type { Colored, Positioned, WbEvent } from '../types/events/base.js';
 import type { StrokeEvent } from '../types/events/stroke.js';
+import type { TextEvent } from '../types/events/text.js';
 import type { Sized } from '../types/geometry.js';
 import { Action, actionOf, Type, typeOf } from '../types/opcodes.js';
 import { BinaryReader } from './binary-reader.js';
 
-export function decodeWBDM(bytes: Uint8Array): { baseTime: number; events: WbEvent[] } {
+export function decodeWBDM(bytes: Uint8Array<ArrayBuffer>): {
+  baseTime: number;
+  events: WbEvent[];
+} {
   const reader = new BinaryReader(bytes);
   const { baseTime } = decodeHeader(reader);
   const events: WbEvent[] = [];
@@ -39,6 +44,9 @@ export function decodeEvent(reader: BinaryReader, baseTime: number): WbEvent {
     case Type.text: {
       return decodeText(reader, actionOf(op), t);
     }
+    case Type.audio: {
+      return decodeAudio(reader, actionOf(op), t);
+    }
     default:
       throw new Error('Unknown event type in opcode 0x' + op.toString(16));
   }
@@ -71,7 +79,7 @@ function decodeStroke(reader: BinaryReader, action: number, t: number): StrokeEv
       throw new Error('Unknown action for stroke event 0x' + action.toString(16));
   }
 }
-function decodeText(r: BinaryReader, action: number, t: number): WbEvent {
+function decodeText(r: BinaryReader, action: number, t: number): TextEvent {
   const eId = r.readUInt32LE();
   const col = decodeColored(r);
   const pos = decodePositioned(r);
@@ -101,7 +109,28 @@ function decodeText(r: BinaryReader, action: number, t: number): WbEvent {
         fontSize: r.readUInt8(),
         content: r.readString(),
       };
+    default:
+      throw new Error('Unknown action for text event 0x' + action.toString(16));
   }
+}
+function decodeAudio(r: BinaryReader, action: number, t: number): AudioEvent {
+  switch (action) {
+    case Action.audio.start: {
+      const mime = r.readString();
+      return { t, type: 'audio', action: 'start', mime, blob: decodeBlob(r, mime) };
+    }
+    case Action.audio.chunk:
+      return { t, type: 'audio', action: 'chunk', blob: decodeBlob(r) };
+    case Action.audio.end:
+      return { t, type: 'audio', action: 'end' };
+    default:
+      throw new Error('Unknown action for audio event 0x' + action.toString(16));
+  }
+}
+
+function decodeBlob(r: BinaryReader, mime?: string): Blob {
+  const len = r.readUInt32LE();
+  return new Blob([r.readBytes(len)], mime ? { type: mime } : undefined);
 }
 
 function decodeColored(r: BinaryReader): Colored {

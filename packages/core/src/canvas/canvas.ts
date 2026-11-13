@@ -29,6 +29,8 @@ export class WbCanvas {
       case 'element':
         applyElementEvent(this, event);
         break;
+      case 'audio':
+        break;
     }
   }
 

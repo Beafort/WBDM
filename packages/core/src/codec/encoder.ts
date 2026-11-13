@@ -1,4 +1,5 @@
 import { encodeColor } from '../canvas/color.js';
+import type { AudioEvent } from '../types/events/audio.js';
 import type { Colored, Positioned, WbEvent } from '../types/events/base.js';
 import type { StrokeEvent } from '../types/events/stroke.js';
 import type { TextEvent } from '../types/events/text.js';
@@ -6,7 +7,7 @@ import type { Sized } from '../types/geometry.js';
 import { Action, pack, Type } from '../types/opcodes.js';
 import { BinaryWriter } from './binary-writer.js';
 
-export function encodeHeader(baseTime: number): Uint8Array {
+export function encodeHeader(baseTime: number): Uint8Array<ArrayBuffer> {
   const w = new BinaryWriter(13);
 
   w.writeBytes(new TextEncoder().encode('WBDM'));
@@ -16,18 +17,20 @@ export function encodeHeader(baseTime: number): Uint8Array {
   return w.getBytes();
 }
 
-export function encodeEvent(e: WbEvent, baseTime: number): Uint8Array {
+export async function encodeEvent(e: WbEvent, baseTime: number): Promise<Uint8Array<ArrayBuffer>> {
   switch (e.type) {
     case 'stroke':
       return encodeStroke(e, baseTime);
     case 'text':
       return encodeText(e, baseTime);
+    case 'audio':
+      return await encodeAudio(e, baseTime);
     case 'element':
     default:
       throw new Error('Not implemented!');
   }
 }
-function encodeStroke(e: StrokeEvent, baseTime: number): Uint8Array {
+function encodeStroke(e: StrokeEvent, baseTime: number): Uint8Array<ArrayBuffer> {
   const w = new BinaryWriter();
 
   w.writeUInt8(pack(Type.stroke, Action.stroke[e.action]));
@@ -49,7 +52,7 @@ function encodeStroke(e: StrokeEvent, baseTime: number): Uint8Array {
   return w.getBytes();
 }
 
-function encodeText(e: TextEvent, baseTime: number): Uint8Array {
+function encodeText(e: TextEvent, baseTime: number): Uint8Array<ArrayBuffer> {
   const w = new BinaryWriter();
 
   w.writeUInt8(pack(Type.text, Action.text[e.action]));
@@ -67,6 +70,31 @@ function encodeText(e: TextEvent, baseTime: number): Uint8Array {
       w.writeString(e.content);
       break;
   }
+  return w.getBytes();
+}
+
+async function encodeAudio(e: AudioEvent, baseTime: number): Promise<Uint8Array<ArrayBuffer>> {
+  const w = new BinaryWriter();
+  w.writeUInt8(pack(Type.audio, Action.audio[e.action]));
+  w.writeUInt32LE(Math.max(0, Math.round(e.t - baseTime)));
+  switch (e.action) {
+    case 'end':
+      break;
+    case 'start': {
+      const data = new Uint8Array(await e.blob.arrayBuffer());
+      w.writeString(e.mime);
+      w.writeUInt32LE(data.length);
+      w.writeBytes(data);
+      break;
+    }
+    case 'chunk': {
+      const data = new Uint8Array(await e.blob.arrayBuffer());
+      w.writeUInt32LE(data.length);
+      w.writeBytes(data);
+      break;
+    }
+  }
+
   return w.getBytes();
 }
 

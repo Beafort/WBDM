@@ -2,7 +2,7 @@ export class BinaryReader {
   private view: DataView;
   private offset = 0;
 
-  constructor(private bytes: Uint8Array) {
+  constructor(private bytes: Uint8Array<ArrayBuffer>) {
     this.view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   }
   /**
@@ -12,7 +12,7 @@ export class BinaryReader {
     return this.bytes.length - this.offset;
   }
 
-  readBytes(length: number): Uint8Array {
+  readBytes(length: number): Uint8Array<ArrayBuffer> {
     this.ensure(length);
     const start = this.offset;
     this.offset += length;
